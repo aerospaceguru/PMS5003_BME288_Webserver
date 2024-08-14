@@ -26,10 +26,8 @@ GuL::PMS5003 pms(Serial2);
 WebServer server(80);
 
 void setup() {
-  // Start serial communication
   Serial.begin(115200);
 
-  // Initialize Wi-Fi
   WiFi.begin(ssid, password);
   Serial.print("Connecting to ");
   Serial.print(ssid);
@@ -43,26 +41,22 @@ void setup() {
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // Initialize BME280 sensor
   if (!bme.begin(0x76)) {
     Serial.println(F("BME280 initialization failed!"));
-    while (1); // Halt if initialization fails
+    while (1);
   }
 
-  // Initialize OLED display
-  if (!display.begin(SSD1306_PAGEADDR, 0x3C)){
+  if (!display.begin(SSD1306_PAGEADDR, 0x3C)) {
     Serial.println(F("SSD1306 initialization failed!"));
-    while (1); // Halt if initialization fails
+    while (1);
   }
   display.display();
-  delay(2000); // Pause for 2 seconds
+  delay(2000);
   display.clearDisplay();
 
-  // Initialize PMS5003 sensor
   Serial2.begin(9600, SERIAL_8N1, RX2, TX2);
   pms.setToPassiveReporting();
 
-  // Define the root URL
   server.on("/", []() {
     String response = "<html><head>";
     response += "<title>Sensor Readings</title>";
@@ -73,31 +67,36 @@ void setup() {
     response += "  xhr.onload = function() {";
     response += "    if (xhr.status === 200) {";
     response += "      document.getElementById('sensor-data').innerHTML = xhr.responseText;";
+    response += "    } else {";
+    response += "      console.error('Failed to fetch data');";
     response += "    }";
+    response += "  };";
+    response += "  xhr.onerror = function() {";
+    response += "    console.error('Request error');";
     response += "  };";
     response += "  xhr.send();";
     response += "}";
-    response += "setInterval(fetchData, 2000);"; // Fetch data every 2 seconds
+    response += "window.onload = function() {";
+    response += "  fetchData();";
+    response += "  setInterval(fetchData, 10000);"; // Set interval to 10 seconds
+    response += "};";
     response += "</script>";
-    response += "</head><body onload='fetchData()'>";
+    response += "</head><body>";
     response += "<h1>Sensor Readings</h1>";
-    response += "<div id='sensor-data'></div>";
+    response += "<div id='sensor-data'>Loading...</div>";
     response += "</body></html>";
     server.send(200, "text/html", response);
   });
 
-  // Define the data endpoint
   server.on("/data", []() {
-    // Read sensor data
     float temperature = bme.readTemperature();
     float humidity = bme.readHumidity();
-    float pressure = bme.readPressure() / 100.0F;  // Convert to hPa
+    float pressure = bme.readPressure() / 100.0F;
 
     pms.poll();
     delay(20);
     pms.read();
 
-    // Create the response for the data endpoint
     String response = "<p>Temperature: " + String(temperature) + " °C</p>";
     response += "<p>Humidity: " + String(humidity) + " %</p>";
     response += "<p>Pressure: " + String(pressure) + " hPa</p>";
@@ -108,24 +107,20 @@ void setup() {
     server.send(200, "text/html", response);
   });
 
-  // Start the server
   server.begin();
 }
 
 void loop() {
-  // Handle web server requests
   server.handleClient();
 
-  // Read sensor data
   float temperature = bme.readTemperature();
   float humidity = bme.readHumidity();
-  float pressure = bme.readPressure() / 100.0F;  // Convert to hPa
+  float pressure = bme.readPressure() / 100.0F;
 
   pms.poll();
   delay(20);
   pms.read();
 
-  // Update OLED display
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -150,5 +145,5 @@ void loop() {
   display.println(" µg/m³");
   display.display();
 
-  delay(2000); // Update every 2 seconds
+  delay(2000); // Update OLED every 2 seconds
 }
